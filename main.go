@@ -85,7 +85,59 @@ func PolynomialToString(coefs []byte) string {
 	return result
 }
 
-//func BerlekampMassey(seq []byte)
+func ShiftRightBytes(data []byte, shift int) []byte {
+	if shift <= 0 {
+		return data
+	}
+	result := make([]byte, len(data)+shift)
+	copy(result[shift:], data)
+	return result
+}
+
+func SumPolynomials(coefs1, coefs2 []byte) []byte {
+	if len(coefs1) < len(coefs2) {
+		coefs1, coefs2 = coefs2, coefs1
+	}
+
+	result := make([]byte, len(coefs1))
+	copy(result, coefs1)
+
+	for i := 0; i < len(coefs2); i++ {
+		result[i] ^= coefs2[i]
+	}
+	return result
+}
+
+func Convolve(c, s []byte, L, N int) byte {
+	result := byte(0)
+	for i := 1; i <= L; i++ {
+		result ^= c[i] & s[N-i]
+	}
+	return result
+}
+
+func BerlekampMassey(seq []byte) (string, int) {
+	C := []byte{1}
+	L := 0
+	m := -1
+	B := []byte{1}
+	n := len(seq)
+	delta := byte(0)
+	for N := 0; N < n; N++ {
+		delta = seq[N] ^ Convolve(C, seq, L, N)
+		if delta == 1 {
+			T := make([]byte, len(C))
+			copy(T, C)
+			C = SumPolynomials(C, ShiftRightBytes(B, N-m))
+			if L <= N/2 {
+				L = N + 1 - L
+				m = N
+				B = T
+			}
+		}
+	}
+	return PolynomialToString(C), L
+}
 
 func main() {
 	//var Reg = []byte{1, 0, 1}
@@ -105,6 +157,7 @@ func main() {
 	//}
 	//fmt.Println(Res)
 
-	coefs := []byte{1, 0, 1, 1, 0, 0, 1}
-	fmt.Println(PolynomialToString(coefs))
+	coefs1 := []byte{1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0}
+	res, L := BerlekampMassey(coefs1)
+	fmt.Printf("%s, L=%d", res, L)
 }
