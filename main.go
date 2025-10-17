@@ -2,70 +2,9 @@ package main
 
 import (
 	"fmt"
-	"sort"
+	"log"
 	"strings"
 )
-
-func GLOrderOptimized(n int, q int64) int64 {
-	result := int64(1)
-
-	// Предварительно вычисляем qⁿ
-	qn := int64(1)
-	for i := 0; i < n; i++ {
-		qn *= q
-		// Проверка на переполнение
-		if qn < 0 {
-			panic("Overflow: q^n exceeds int64")
-		}
-	}
-
-	// qi будет накапливать степени q
-	qi := int64(1)
-
-	for i := 0; i < n; i++ {
-		// Вычисляем (qⁿ - qⁱ)
-		factor := qn - qi
-
-		// Умножаем результат
-		result *= factor
-
-		// Проверка на переполнение
-		if result < 0 {
-			panic("Overflow: result exceeds int64")
-		}
-
-		// Умножаем qi на q для следующей итерации
-		qi *= q
-
-		// Проверка на переполнение
-		if qi < 0 {
-			panic("Overflow: q^i exceeds int64")
-		}
-	}
-
-	return result
-}
-
-func getDivisors(n int) []int {
-	if n == 0 {
-		return []int{}
-	}
-
-	divisors := []int{}
-	i := 1
-	for i*i <= n {
-		if n%i == 0 {
-			divisors = append(divisors, i)
-			if i != n/i {
-				divisors = append(divisors, n/i)
-			}
-		}
-		i++
-	}
-
-	sort.Ints(divisors)
-	return divisors
-}
 
 func PolynomialToString(coefs []byte) string {
 	var sliceResult []string
@@ -108,56 +47,67 @@ func SumPolynomials(coefs1, coefs2 []byte) []byte {
 	return result
 }
 
-func Convolve(c, s []byte, L, N int) byte {
+func Convolve(c, s []byte, L, n int) byte {
 	result := byte(0)
 	for i := 1; i <= L; i++ {
-		result ^= c[i] & s[N-i]
+		result ^= c[i] & s[n-i]
 	}
 	return result
 }
 
 func BerlekampMassey(seq []byte) (string, int) {
 	C := []byte{1}
-	L := 0
-	m := -1
 	B := []byte{1}
-	n := len(seq)
-	delta := byte(0)
-	for N := 0; N < n; N++ {
-		delta = seq[N] ^ Convolve(C, seq, L, N)
-		if delta == 1 {
+	L := 0
+	m := 1
+	N := len(seq)
+
+	for n := 0; n < N; n++ {
+		delta := seq[n] ^ Convolve(C, seq, L, n)
+		if delta == 0 {
+			m++
+		} else if 2*L <= n {
 			T := make([]byte, len(C))
 			copy(T, C)
-			C = SumPolynomials(C, ShiftRightBytes(B, N-m))
-			if L <= N/2 {
-				L = N + 1 - L
-				m = N
-				B = T
-			}
+			C = SumPolynomials(C, ShiftRightBytes(B, m))
+			L = n + 1 - L
+			B = T
+			m = 1
+		} else {
+			C = SumPolynomials(C, ShiftRightBytes(B, m))
+			m++
 		}
 	}
 	return PolynomialToString(C), L
 }
 
-func main() {
-	//var Reg = []byte{1, 0, 1}
-	//var Res []byte
-	//var Func = []byte{1, 1, 0}
-	//for range 10 {
-	//	var FuncRes byte = 0
-	//	Res = append(Res, Reg[0])
-	//	for i, val := range Reg {
-	//		FuncRes ^= val & Func[i]
-	//	}
-	//	for i := 1; i < len(Reg); i++ {
-	//		Reg[i-1] = Reg[i]
-	//	}
-	//	Reg[len(Reg)-1] = byte(FuncRes)
-	//	fmt.Println(Reg)
-	//}
-	//fmt.Println(Res)
+func GenerateSequenceFromPoly(initial, coefs []byte, length int) []byte {
+	if len(initial) != len(coefs) {
+		log.Fatalf("initial must have length %d", len(coefs))
+	}
 
-	coefs1 := []byte{1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0}
-	res, L := BerlekampMassey(coefs1)
-	fmt.Printf("%s, L=%d", res, L)
+	regs := initial
+	seq := make([]byte, length)
+	lenReg := len(regs)
+	for n := 0; n < length; n++ {
+		seq[n] = regs[0]
+		res := byte(0)
+		for i := 0; i < lenReg; i++ {
+			res ^= regs[i] & coefs[lenReg-1-i]
+		}
+		for i := 1; i < lenReg; i++ {
+			regs[i-1] = regs[i]
+		}
+		regs[lenReg-1] = res
+	}
+	return seq
+}
+
+func main() {
+	seq := GenerateSequenceFromPoly([]byte{0, 0, 0, 1}, []byte{1, 1, 0, 1}, 30)
+	fmt.Println(seq)
+
+	// coefs1 := []byte{1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 1}
+	res, L := BerlekampMassey(seq)
+	fmt.Printf("%s, L=%d\n", res, L)
 }
